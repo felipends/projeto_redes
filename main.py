@@ -1,7 +1,9 @@
 import math
-from layers import *
+from layers import NetworkLayer
 from layers import LinkLayer
 from layers import PhysicalLayer
+from networkTopology import NetworkTopology, Network
+from message import Message
 class Node:
     '''
     Classe que simula um Hospedeiro.
@@ -14,7 +16,7 @@ class Node:
         self.Energy = energy
         self.Sender = send #Valor booleano que indica se o nó está enviando
         self.Destination = dest #Valor booleano que indica se o nó está recebendo
-        self.Network = NetworkLayer(LinkLayer(PhysicalLayer(x, y, id, reach, energy)))
+        self.Network = NetworkLayer(LinkLayer(PhysicalLayer(x, y, nodeId, reach, energy)))
     
     def isNeighbor(self, node) -> bool:
         a = (self.X - node.X)**2
@@ -32,30 +34,6 @@ class Node:
     
     def toString(self):
         return f"id: {self.Id}, posX,Y: ({self.X},{self.Y}), reach: {self.Reach}, energy: {self.Energy}"
-
-class NetworkTopology:
-    def __init__(self, nodes):
-        self.Nodes = nodes
-
-    def toString(self):
-        return f"Nós: {[self.Nodes[node].toString() for node in self.Nodes]}"
-
-    def sendMessage(self, message):
-        self.Nodes[message.S].AddPackage(message)
-
-class Message:
-    def __init__(self, messageText, nodeSender, nodeDestiny):
-        self.M = messageText
-        self.S = nodeSender
-        self.D = nodeDestiny
-        self.Headers = []
-
-    def AddHeader(self, header):
-        print(f" [MESNAGEM] - Adicionando cabeçalho da camada {header.Layer} na mensagem.")
-        self.Headers.append(header)
-
-    def ToString(self):
-        return f"Mac de Origem: {self.S}, Mac de Destino: {self.D}, Conteudo: {self.M}."
 
 def createNetworkFromFile(filename):
     fileInput = open(filename)
@@ -82,17 +60,42 @@ def createNetworkFromFile(filename):
 
         nodes[nodeId] = Node(nodeId, nodeX, nodeY, nodeReach, nodeEnergy, isSender, isDestiny)
     print(f"[INICIO] - Rede definida com {len(nodes)} nós.")
-    nw = NetworkTopology(nodes)
-    msg = Message(messageText, nodeSender, nodeDestiny)
+    nw = NetworkTopology()
+    nw.Nodes = nodes
+    msg = Message(messageText, nodeSender, nodeDestiny, None)
     return nw, msg
 
 def main():
     print("[INICIO] - Lendo arquivo para configurar rede.")
-    network, message = createNetworkFromFile("entrada.txt")
+    n, message = createNetworkFromFile("entrada.txt")
+    Network.Nodes = n.Nodes
     print("[INICIO] - Arquivo lido e rede configurada!")
-    print(network.toString())
-    print(f"[MENSAGEM] - Nó de origem: {message.S}, Nó de destino: {message.D}, conteudo: {message.M}")
-    network.sendMessage(message)
+    print(Network.toString())
+    t = 0
+    while t < 20:
+        print(f"[MENSAGEM] - Nó de origem: {message.S}, Nó de destino: {message.D}, conteudo: {message.M}")
+        if t == 0:
+            Network.sendMessage(message)
+            Network.Senders.append(message.S)
+        print(f"[MAIN] - Lista de nós que enviam: {Network.Senders}")
+        if len(Network.NextSenders) > 0:
+            for mac in Network.NextSenders:
+                Network.Senders.append(mac)
+        del Network.NextSenders[:]
+
+        print(f"[MAIN] - Lista de nós que recebem: {Network.Macs}")
+        for mac in Network.Macs:
+            Network.Nodes[mac].Network.RecievePackage()
+        del Network.Macs[:]
+
+        print(f"[MAIN] - Nós que enviam: {Network.Senders}.")
+        for mac in  Network.Senders:
+            print(f"[MAIN] - Nó {Network.Nodes[mac].Id} se prepara para enviar pacote para camada de rede.")
+            Network.Nodes[mac].Network.SendPackage()
+        del Network.Senders[:]
+
+        # atualiza tempo
+        t = t+1
 
 if __name__ == "__main__":
     main()
